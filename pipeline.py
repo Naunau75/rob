@@ -1,5 +1,6 @@
 import httpx
 import os
+from typing import Any, Dict, List
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -7,14 +8,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class UserPipeline:
-    def __init__(self):
+    def __init__(self) -> None:
         # Configuration MongoDB
         self.mongo_uri = os.getenv("MONGO_URI")
         self.db_name = os.getenv("DB_NAME")
         self.col_name = os.getenv("COLLECTION_NAME")
         self.api_url = "https://jsonplaceholder.typicode.com/users"
 
-    async def extract(self):
+    async def extract(self) -> List[Dict[str, Any]]:
         """Étape 1: Faire le call API (Asynchrone)"""
         print("--- Début de l'extraction ---")
         async with httpx.AsyncClient() as client:
@@ -24,7 +25,7 @@ class UserPipeline:
             print(f"{len(data)} utilisateurs récupérés.")
             return data
 
-    def transform(self, raw_data):
+    def transform(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Étape 2: Formater les données"""
         print("--- Début de la transformation ---")
         processed_data = []
@@ -47,7 +48,7 @@ class UserPipeline:
             
         return processed_data
 
-    def load(self, data):
+    def load(self, data: List[Dict[str, Any]]) -> int | str:
         """Étape 3: Stocker dans MongoDB"""
         print("--- Début du chargement ---")
         if not data:
@@ -67,7 +68,7 @@ class UserPipeline:
         print(f"Succès : {len(result.inserted_ids)} documents insérés.")
         return len(result.inserted_ids)
 
-    async def run(self):
+    async def run(self) -> Dict[str, Any]:
         """Orchestre tout le pipeline"""
         raw_users = await self.extract()
         clean_users = self.transform(raw_users)

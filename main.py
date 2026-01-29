@@ -1,7 +1,9 @@
 from robyn import Robyn, jsonify
+from robyn.types import Request
 from pipeline import UserPipeline
 from pymongo import MongoClient
 import os
+from typing import Any
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,12 +14,12 @@ app = Robyn(__file__)
 pipeline = UserPipeline()
 
 @app.get("/")
-async def h(request):
+async def h(request: Request) -> str:
     return "Bienvenue sur l'API ETL ! Fais un POST sur /run-pipeline pour lancer."
 
 # Route 1 : Déclencher le pipeline
 @app.post("/run-pipeline")
-async def trigger_pipeline(request):
+async def trigger_pipeline(request: Request) -> Any:
     try:
         # Appel de la méthode run() de notre classe Pipeline
         result = await pipeline.run()
@@ -27,7 +29,7 @@ async def trigger_pipeline(request):
 
 # Route 2 : Consulter les données (Lecture simple depuis Mongo)
 @app.get("/users")
-async def get_users(request):
+async def get_users(request: Request) -> Any:
     try:
         client = MongoClient(os.getenv("MONGO_URI"))
         db = client[os.getenv("DB_NAME")]
