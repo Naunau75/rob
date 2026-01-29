@@ -7,8 +7,12 @@ Une API ETL (Extract, Transform, Load) moderne et performante construite avec [R
 - **Pipeline ETL asynchrone** : Extraction, transformation et chargement de données
 - **API REST rapide** : Propulsée par Robyn, un framework web Python ultra-rapide
 - **Stockage MongoDB** : Persistance des données avec support MongoDB Atlas
-- **Architecture modulaire** : Séparation claire entre le pipeline et l'API
+- **Validation Pydantic** : Validation robuste des données à chaque étape du pipeline
+- **Logging professionnel** : Traçabilité complète avec timestamps et niveaux de log
+- **Type hints complets** : Code type-safe avec annotations Python modernes
+- **Architecture modulaire** : Séparation claire entre modèles, pipeline et API
 - **Gestion d'environnement** : Configuration via variables d'environnement
+- **Gestion d'erreurs** : Traitement robuste des erreurs avec logs détaillés
 
 ## 📋 Prérequis
 
