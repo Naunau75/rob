@@ -34,8 +34,9 @@ async def trigger_pipeline(request: Request) -> Any:
     try:
         # Appel de la méthode run() de notre classe Pipeline
         result = await pipeline.run()
+        # Convertir le modèle Pydantic en dict pour jsonify
         logger.info(f"Pipeline exécuté avec succès: {result}")
-        return jsonify(result)
+        return jsonify(result.model_dump())
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution du pipeline: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)})
