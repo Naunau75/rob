@@ -90,7 +90,8 @@ Déclenche le pipeline complet :
 ```json
 {
   "status": "success",
-  "inserted_count": 10
+  "inserted_count": 10,
+  "message": "10 utilisateurs traités avec succès"
 }
 ```
 
@@ -127,6 +128,7 @@ Récupère les 10 derniers utilisateurs stockés dans MongoDB.
 rob/
 ├── main.py              # Point d'entrée de l'API Robyn
 ├── pipeline.py          # Logique du pipeline ETL
+├── models.py            # Modèles Pydantic pour validation
 ├── pyproject.toml       # Configuration du projet et dépendances
 ├── README.md            # Documentation
 ├── .env                 # Variables d'environnement (à créer)
@@ -135,21 +137,56 @@ rob/
 
 ## 🔧 Architecture
 
+### Modèles de données (`models.py`)
+
+Le projet utilise **Pydantic** pour une validation robuste des données :
+
+- **`RawUser`** : Modèle pour les données brutes de l'API JSONPlaceholder
+  - Validation automatique des emails avec `EmailStr`
+  - Sous-modèles : `Address`, `GeoLocation`, `Company`
+  - Ignore les champs supplémentaires non définis
+
+- **`TransformedUser`** : Modèle pour les données transformées
+  - Validators personnalisés (nom en majuscules, email en minuscules)
+  - Méthode `to_mongo_dict()` pour conversion MongoDB
+  - Contraintes de validation (longueur minimale, format)
+
+- **`PipelineResult`** : Modèle pour la réponse du pipeline
+  - Status validé (success/error uniquement)
+  - Compteur d'insertions (>= 0)
+  - Message optionnel
+
 ### Pipeline ETL (`pipeline.py`)
 
-La classe `UserPipeline` implémente le pattern ETL classique :
+La classe `UserPipeline` implémente le pattern ETL avec validation :
 
-1. **Extract** : Appel asynchrone à l'API JSONPlaceholder avec `httpx`
+1. **Extract** : 
+   - Appel asynchrone à l'API JSONPlaceholder avec `httpx`
+   - Validation de chaque utilisateur avec Pydantic
+   - Logs des utilisateurs invalides (ignorés)
+   - Retourne `List[RawUser]`
+
 2. **Transform** : 
    - Normalisation des noms (majuscules)
    - Normalisation des emails (minuscules)
-   - Aplatissement de la structure des données
-   - Ajout de métadonnées (source du pipeline)
-3. **Load** : Insertion en masse dans MongoDB avec `pymongo`
+   - Validation automatique via `TransformedUser`
+   - Gestion d'erreur par utilisateur
+   - Retourne `List[TransformedUser]`
+
+3. **Load** : 
+   - Conversion des modèles Pydantic en dictionnaires
+   - Insertion en masse dans MongoDB avec `pymongo`
+   - Gestion d'erreurs avec fermeture propre de la connexion
+
+4. **Logging** :
+   - Logs structurés avec timestamps
+   - Niveaux appropriés (INFO, WARNING, ERROR)
+   - Stack traces complètes pour les erreurs
 
 ### API REST (`main.py`)
 
 - Framework : **Robyn** (async, haute performance)
+- Logging de toutes les requêtes
 - Routes :
   - `/` : Page d'accueil
   - `/run-pipeline` : Déclenchement du pipeline
@@ -160,6 +197,7 @@ La classe `UserPipeline` implémente le pattern ETL classique :
 - **robyn** (>=0.76.0) : Framework web asynchrone
 - **pymongo[srv]** (>=4.16.0) : Driver MongoDB
 - **httpx** (>=0.28.1) : Client HTTP asynchrone
+- **pydantic** (>=2.12.5) : Validation de données et sérialisation
 - **python-dotenv** (>=1.2.1) : Gestion des variables d'environnement
 
 ## 🧪 Exemple d'utilisation
@@ -175,7 +213,40 @@ curl -X POST http://localhost:8080/run-pipeline
 curl http://localhost:8080/users
 ```
 
-## 🔒 Sécurité
+## � Logging et Validation
+
+### Exemple de logs du pipeline
+
+Lorsque vous lancez le pipeline, vous verrez des logs détaillés :
+
+```
+2026-01-29 10:00:00 - __main__ - INFO - Démarrage de l'application Robyn sur le port 8080
+2026-01-29 10:01:15 - __main__ - INFO - Requête POST reçue sur /run-pipeline - Démarrage du pipeline
+2026-01-29 10:01:15 - pipeline - INFO - === Démarrage du pipeline ETL ===
+2026-01-29 10:01:15 - pipeline - INFO - Début de l'extraction des données depuis l'API
+2026-01-29 10:01:16 - pipeline - INFO - 10 utilisateurs récupérés depuis https://jsonplaceholder.typicode.com/users
+2026-01-29 10:01:16 - pipeline - INFO - 10 utilisateurs validés sur 10
+2026-01-29 10:01:16 - pipeline - INFO - Début de la transformation de 10 utilisateurs
+2026-01-29 10:01:16 - pipeline - INFO - Transformation terminée: 10 utilisateurs traités
+2026-01-29 10:01:16 - pipeline - INFO - Début du chargement des données dans MongoDB
+2026-01-29 10:01:17 - pipeline - INFO - Succès: 10 documents insérés dans mydb.users
+2026-01-29 10:01:17 - pipeline - INFO - === Pipeline terminé avec succès: 10 documents insérés ===
+```
+
+### Validation Pydantic en action
+
+Si des données invalides sont détectées, elles sont automatiquement filtrées :
+
+```
+2026-01-29 10:01:16 - pipeline - WARNING - Utilisateur invalide ignoré (ID: 5): 1 validation error for RawUser
+email
+  value is not a valid email address
+```
+
+Le pipeline continue son exécution en ignorant les données invalides, assurant ainsi la robustesse du système.
+
+
+## �🔒 Sécurité
 
 - ⚠️ Ne committez **jamais** votre fichier `.env` dans Git
 - Utilisez des variables d'environnement pour toutes les informations sensibles
@@ -187,10 +258,11 @@ curl http://localhost:8080/users
 - [ ] Implémenter une pagination pour `/users`
 - [ ] Ajouter des tests unitaires et d'intégration
 - [ ] Utiliser Motor pour une connexion MongoDB asynchrone
-- [ ] Ajouter un système de logs structurés
 - [ ] Implémenter un système de retry en cas d'échec
 - [ ] Ajouter une authentification JWT
 - [ ] Créer un dashboard de monitoring
+- [ ] Exporter les logs vers un système centralisé (ELK, Datadog)
+- [ ] Ajouter des métriques de performance (temps d'exécution par étape)
 
 ## 📝 Licence
 
